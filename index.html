@@ -8,45 +8,59 @@
   <style>
     body {
       font-family: sans-serif;
+      font-size: 2.2em; /* 全体のフォントサイズを2.2emに */
       padding: 16px;
     }
-    /* 時間帯チェックボックスの見た目を少し大きく */
+
+    /* 時間帯チェックボックスのレイアウト */
     .time-options label {
       display: inline-block;
       margin: 8px;
-      font-size: 3.2em;  /* テキストを大きく */
     }
-    /* カメラ映像表示領域のサイズや枠 */
+    /* チェックボックス自体を大きく（拡大） */
+    .time-options input[type="checkbox"] {
+      transform: scale(1.5); 
+      margin-right: 5px; /* チェックボックスと文字の間隔を少し */
+    }
+
+    /* カメラ映像表示領域を大きく */
     #reader {
-      width: 640px;
-      height: 280px;
-      margin: 100px 0;
-      border: 10px dashed #ccc;
+      width: 640px;   /* 2倍以上の大きさ */
+      height: 480px;  /* 2倍以上の大きさ */
+      margin: 20px 0;
+      border: 2px dashed #ccc;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    /* 結果表示も大きめ */
-    .scan-result {
-      font-size: 3.3em;
-      margin: 10px 0;
-    }
-    /* スキャン開始ボタンも少し大きく */
+
+    /* スキャン開始ボタン */
     #startScanBtn {
-      font-size: 3.2em;
       padding: 8px 16px;
     }
-    /* 2回目スキャンスタートのお知らせメッセージ */
+
+    /* 2回目スキャン開始のお知らせ */
     #secondScanMessage {
       color: red;
       font-weight: bold;
-      font-size: 2.3em;
-      margin: 20px 0;
+      margin: 20px 0;  /* カメラから十分な余白をとる */
     }
-    /* 下に追加する「ボタンの絵」の見た目 */
-    #dummyButtonImage {
+
+    /* 結果表示 */
+    .scan-result {
+      margin: 10px 0;
+    }
+
+    /* 下部のダミーボタン表示 */
+    #dummyButton {
+      width: 300px; 
+      height: 100px;
+      border: 2px solid #000;
+      background-color: #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       margin-top: 30px;
-      width: 120px; /* サイズはお好みで調整 */
     }
   </style>
 </head>
@@ -80,13 +94,13 @@
   <!-- スキャン開始ボタン -->
   <button id="startScanBtn">スキャン開始</button>
 
-  <!-- 2回目スキャン切り替えメッセージ -->
-  <div id="secondScanMessage" style="display:none;">
-    === 2回目のスキャンを始めます ===
-  </div>
-
   <!-- カメラ映像とQR読取り領域 -->
   <div id="reader">カメラを起動中...</div>
+
+  <!-- 2回目スキャン切り替えメッセージ -->
+  <div id="secondScanMessage" style="display:none;">
+    == 2回目のスキャンを始めます ==
+  </div>
 
   <!-- スキャン結果表示（1回目・2回目） -->
   <p class="scan-result">【1回目】<span id="scanResult1">-</span></p>
@@ -95,9 +109,9 @@
   <!-- 選択された時間帯の表示 -->
   <p class="scan-result">選択時間帯: <span id="selectedTimes">-</span></p>
 
-  <!-- 下部に「ボタンの絵」を追加（機能はしないダミー） -->
-  <img id="dummyButtonImage" src="https://via.placeholder.com/120x60?text=%E3%80%8C%E3%83%9C%E3%82%BF%E3%83%B3%E3%80%8D" alt="ボタンの絵">
-  
+  <!-- ダミーのボタンっぽい表示を追加 -->
+  <div id="dummyButton">ボタンのイメージ</div>
+
   <script>
     const startScanBtn = document.getElementById('startScanBtn');
     const readerDiv = document.getElementById('reader');
@@ -117,7 +131,7 @@
       timeCheckboxes.forEach(cb => times.push(cb.value));
       selectedTimesSpan.textContent = times.join(', ') || '(未選択)';
 
-      // 2回目切り替えメッセージは一旦隠す
+      // 2回目切り替えメッセージは一旦非表示
       secondScanMessage.style.display = 'none';
 
       // 既にスキャン中なら停止させて再スタート
@@ -130,7 +144,7 @@
 
       // カメラ起動
       html5QrCode = new Html5Qrcode("reader");
-      const config = { fps: 10, qrbox: 250 };
+      const config = { fps: 10, qrbox: 400 }; // 幅640に合わせてqrboxも少し大きめでもOK
       html5QrCode.start(
         { facingMode: "environment" }, // 背面カメラを優先
         config,
@@ -148,7 +162,7 @@
       console.log(`スキャン${scanCount}回目: `, decodedText);
 
       if (scanCount === 1) {
-        // 1回目の結果
+        // 1回目の結果を表示
         scanResult1Span.textContent = decodedText;
         // 2回目へ切り替える合図を出す
         secondScanMessage.style.display = 'block';
