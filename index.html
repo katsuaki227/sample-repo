@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: sans-serif;
-      font-size: 2.2em; /* 全体を大きく */
+      font-size: 2.2em; /* 全体を大きめ */
       margin: 20px;
     }
     table {
@@ -24,7 +24,7 @@
     th {
       background: #dce6f1; /* 薄い水色 */
     }
-    /* 選択された行のハイライト */
+    /* 選択された行をハイライト表示 */
     tr.selected-row td {
       background-color: #ffecb3;
     }
@@ -33,12 +33,11 @@
       padding: 0.2em 0.5em;
       margin-right: 10px;
     }
-    /* カメラ表示を大きく（640×640） */
     #reader {
       width: 640px;
       height: 640px;
       border: 2px dashed #666;
-      display: none; /* 初期は隠す */
+      display: none; /* 初期は非表示 */
       margin-bottom: 20px;
     }
   </style>
@@ -46,13 +45,14 @@
 <body>
 
 <h1>QRスキャン（Time / Content / Name）</h1>
-<p>1回目スキャン結果 → <strong>Content</strong> 列、<br>
-   2回目スキャン結果 → <strong>Name</strong> 列に入ります。</p>
-<p>複数行をクリックで選択（黄色ハイライト）し、<br>
-   「Scan #1」→読み取り→「Starting Scan #2」→読み取り、<br>
-   の順に操作してください。</p>
+<p>
+  <strong>1回目のQR</strong> → 「Content」列、  
+  <strong>2回目のQR</strong> → 「Name」列 に書き込みます。<br>
+  7:00～11:00までの時刻行を複数選択して、<br>
+  「Scan #1」→読み取り →「Starting Scan #2」→読み取り の順に操作してください。
+</p>
 
-<!-- 7:00～11:00の15分刻み (例: 7:00, 7:15, ..., 11:00) -->
+<!-- 表: 7:00～11:00(15分おき) -->
 <table id="timeTable">
   <thead>
     <tr>
@@ -82,7 +82,7 @@
   </tbody>
 </table>
 
-<!-- スキャン用ボタン -->
+<!-- 操作用ボタン -->
 <button id="scan1Btn">Scan #1</button>
 <button id="scan2Btn" style="display:none;">Starting Scan #2</button>
 
@@ -90,96 +90,114 @@
 <div id="reader"></div>
 
 <script>
+  let selectedRows = [];     // 選択中の <tr> を保持
+  let scanCount = 0;         // 今が1回目スキャンか2回目スキャンか
+  let html5QrCode = null;    // Html5Qrcodeインスタンス
+
   const timeTable = document.getElementById('timeTable');
   const scan1Btn = document.getElementById('scan1Btn');
   const scan2Btn = document.getElementById('scan2Btn');
   const readerDiv = document.getElementById('reader');
 
-  let html5QrCode = null;    // QRコード読み取りオブジェクト
-  let scanCount = 0;         // 1 or 2
-  let selectedRows = [];     // 選択中のtr要素リスト
-
   // ◆◆◆ テーブル行クリック → 選択/解除 ◆◆◆
   timeTable.addEventListener('click', (e) => {
-    // tr全体をクリック対象にしたいので、クリック位置からtrを探す
-    let row = e.target.closest('tr');
-    if (!row || row.rowIndex === 0) return; // ヘッダは無視
+    const row = e.target.closest('tr');
+    // ヘッダ行(rowIndex=0)は無視
+    if (!row || row.rowIndex === 0) return;
+    // 選択済なら解除、未選択なら追加
     if (selectedRows.includes(row)) {
-      // 選択解除
       selectedRows = selectedRows.filter(r => r !== row);
       row.classList.remove('selected-row');
     } else {
-      // 選択
       selectedRows.push(row);
       row.classList.add('selected-row');
     }
   });
 
-  // ◆◆◆ Scan #1 ボタン → 1回目スキャン ◆◆◆
-  scan1Btn.addEventListener('click', () => {
+  // ◆◆◆「Scan #1」ボタン → 1回目のスキャン ◆◆◆
+  scan1Btn.addEventListener('click', async () => {
     if (selectedRows.length === 0) {
-      alert("先にテーブルの行をクリックして選択してください。");
+      alert("先にテーブルの行を1つ以上クリックして選択してください。");
       return;
     }
     scanCount = 1;
-    startCamera();
+    await startCamera();
   });
 
-  // ◆◆◆ Starting Scan #2 ボタン → 2回目スキャン ◆◆◆
-  scan2Btn.addEventListener('click', () => {
+  // ◆◆◆「Starting Scan #2」ボタン → 2回目のスキャン ◆◆◆
+  scan2Btn.addEventListener('click', async () => {
     scanCount = 2;
-    startCamera();
+    await startCamera();
   });
 
-  // ◆◆◆ カメラ起動処理 ◆◆◆
-  function startCamera() {
-    // すでにスキャン中なら一旦停止
+  // ◆◆◆ カメラを起動する関数 ◆◆◆
+  async function startCamera() {
+    // すでにカメラが動いていたら停止して破棄
     if (html5QrCode) {
-      html5QrCode.stop().catch(err => console.error(err));
+      try {
+        await html5QrCode.stop();
+      } catch(e) {
+        console.error("Failed to stop camera:", e);
+      }
+      html5QrCode = null;
     }
-    readerDiv.style.display = "block"; // カメラ枠を表示
 
+    // カメラ枠を表示
+    readerDiv.style.display = "block";
+
+    // 新しくQRコードインスタンスを作り直す
     html5QrCode = new Html5Qrcode("reader");
     const config = {
       fps: 10,
-      qrbox: { width: 600, height: 600 } // 大きい読み取り範囲
+      // 幅・高さとも600の大きいqrbox
+      qrbox: { width: 600, height: 600 }
     };
-    html5QrCode.start(
-      { facingMode: "environment" }, // 背面カメラ優先
-      config,
-      onScanSuccess
-    )
-    .catch(err => {
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" }, // 背面カメラ優先
+        config,
+        onScanSuccess
+      );
+      console.log("Camera started for scan #" + scanCount);
+    } catch (err) {
       console.error("Camera start error:", err);
       alert("カメラを起動できませんでした: " + err);
-    });
+    }
   }
 
-  // ◆◆◆ QRコード読み取り成功コールバック ◆◆◆
-  function onScanSuccess(decodedText, decodedResult) {
-    // 1回読み取ったら停止してカメラを隠す
-    html5QrCode.stop().then(() => {
-      readerDiv.style.display = "none";
-    }).catch(err => console.error(err));
+  // ◆◆◆ QRコード読み取れたら呼ばれる関数 ◆◆◆
+  async function onScanSuccess(decodedText, decodedResult) {
+    console.log("Scanned result:", decodedText);
 
+    // 1回読んだら停止し、カメラを隠す
+    if (html5QrCode) {
+      try {
+        await html5QrCode.stop();
+        html5QrCode = null;
+      } catch(e) {
+        console.error("Error stopping camera:", e);
+      }
+    }
+    readerDiv.style.display = "none";
+
+    // 1回目 → 選択行の「Content」列に書き込み
+    // 2回目 → 選択行の「Name」列に書き込み
     if (scanCount === 1) {
-      // 1回目 → 各選択行の「Content」列に上書き
       selectedRows.forEach(row => {
         const cells = row.querySelectorAll('td');
-        // [0]=Time, [1]=Content, [2]=Name の順
-        cells[1].textContent = decodedText; // Content列に書き込み
+        // [0]=Time, [1]=Content, [2]=Name
+        cells[1].textContent = decodedText; // Content列
       });
-      // 次に「Scan #2」ボタンを表示
+      // 2回目ボタンを表示
       scan1Btn.style.display = "none";
       scan2Btn.style.display = "inline-block";
-
     } else if (scanCount === 2) {
-      // 2回目 → 選択行の「Name」列に上書き
       selectedRows.forEach(row => {
         const cells = row.querySelectorAll('td');
-        cells[2].textContent = decodedText; // Name列に書き込み
+        cells[2].textContent = decodedText; // Name列
       });
-      // 2回目終了後は Scan #1 ボタン表示に戻す, #2隠す
+      // 2回目終了後 → Scan #1に戻す
       scan2Btn.style.display = "none";
       scan1Btn.style.display = "inline-block";
     }
