@@ -10,60 +10,117 @@
       font-family: sans-serif;
       padding: 16px;
     }
-    #reader {
-      width: 300px;
-      margin: 10px 0;
-      border: 1px solid #ccc;
-    }
+    /* 時間帯チェックボックスの見た目を少し大きく */
     .time-options label {
-      margin-right: 8px;
+      display: inline-block;
+      margin: 8px;
+      font-size: 1.2em;  /* テキストを大きく */
+    }
+    /* カメラ映像表示領域のサイズや枠 */
+    #reader {
+      width: 320px;
+      height: 240px;
+      margin: 20px 0;
+      border: 2px dashed #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* 結果表示も大きめ */
+    .scan-result {
+      font-size: 1.3em;
+      margin: 10px 0;
+    }
+    /* スキャン開始ボタンも少し大きく */
+    #startScanBtn {
+      font-size: 1.2em;
+      padding: 8px 16px;
+    }
+    /* 2回目スキャンスタートのお知らせメッセージ */
+    #secondScanMessage {
+      color: red;
+      font-weight: bold;
+      font-size: 1.3em;
+      margin: 10px 0;
+    }
+    /* 下に追加する「ボタンの絵」の見た目 */
+    #dummyButtonImage {
+      margin-top: 30px;
+      width: 120px; /* サイズはお好みで調整 */
     }
   </style>
 </head>
 <body>
   <h1>QRスキャンデモ</h1>
-  <p>時間帯を選択し、「スキャン開始」を押してカメラを起動。2回連続スキャンすると、結果が表示されます。</p>
+  <p>7:30～12:00までの15分刻みの時間帯から選択し、「スキャン開始」を押してQRコードを2回連続で読み取ってください。</p>
 
-  <!-- 時間帯のチェックボックス例 -->
+  <!-- 7:30～12:00(15分刻み)のチェックボックス -->
   <div class="time-options">
-    <label><input type="checkbox" name="time" value="7:00">7:00</label>
     <label><input type="checkbox" name="time" value="7:30">7:30</label>
+    <label><input type="checkbox" name="time" value="7:45">7:45</label>
     <label><input type="checkbox" name="time" value="8:00">8:00</label>
-    <!-- 必要に応じて増やす -->
+    <label><input type="checkbox" name="time" value="8:15">8:15</label>
+    <label><input type="checkbox" name="time" value="8:30">8:30</label>
+    <label><input type="checkbox" name="time" value="8:45">8:45</label>
+    <label><input type="checkbox" name="time" value="9:00">9:00</label>
+    <label><input type="checkbox" name="time" value="9:15">9:15</label>
+    <label><input type="checkbox" name="time" value="9:30">9:30</label>
+    <label><input type="checkbox" name="time" value="9:45">9:45</label>
+    <label><input type="checkbox" name="time" value="10:00">10:00</label>
+    <label><input type="checkbox" name="time" value="10:15">10:15</label>
+    <label><input type="checkbox" name="time" value="10:30">10:30</label>
+    <label><input type="checkbox" name="time" value="10:45">10:45</label>
+    <label><input type="checkbox" name="time" value="11:00">11:00</label>
+    <label><input type="checkbox" name="time" value="11:15">11:15</label>
+    <label><input type="checkbox" name="time" value="11:30">11:30</label>
+    <label><input type="checkbox" name="time" value="11:45">11:45</label>
+    <label><input type="checkbox" name="time" value="12:00">12:00</label>
   </div>
 
   <!-- スキャン開始ボタン -->
   <button id="startScanBtn">スキャン開始</button>
 
-  <!-- カメラ映像とQR読取りを行う領域 -->
-  <div id="reader"></div>
+  <!-- 2回目スキャン切り替えメッセージ -->
+  <div id="secondScanMessage" style="display:none;">
+    === 2回目のスキャンを始めます ===
+  </div>
 
-  <!-- スキャン結果表示 -->
-  <p>【1回目】<span id="scanResult1">-</span></p>
-  <p>【2回目】<span id="scanResult2">-</span></p>
+  <!-- カメラ映像とQR読取り領域 -->
+  <div id="reader">カメラを起動中...</div>
+
+  <!-- スキャン結果表示（1回目・2回目） -->
+  <p class="scan-result">【1回目】<span id="scanResult1">-</span></p>
+  <p class="scan-result">【2回目】<span id="scanResult2">-</span></p>
 
   <!-- 選択された時間帯の表示 -->
-  <p>選択時間帯: <span id="selectedTimes">-</span></p>
+  <p class="scan-result">選択時間帯: <span id="selectedTimes">-</span></p>
 
+  <!-- 下部に「ボタンの絵」を追加（機能はしないダミー） -->
+  <img id="dummyButtonImage" src="https://via.placeholder.com/120x60?text=%E3%80%8C%E3%83%9C%E3%82%BF%E3%83%B3%E3%80%8D" alt="ボタンの絵">
+  
   <script>
     const startScanBtn = document.getElementById('startScanBtn');
     const readerDiv = document.getElementById('reader');
     const scanResult1Span = document.getElementById('scanResult1');
     const scanResult2Span = document.getElementById('scanResult2');
     const selectedTimesSpan = document.getElementById('selectedTimes');
+    const secondScanMessage = document.getElementById('secondScanMessage');
 
-    let scanCount = 0;      // 何回目のスキャンか
+    let scanCount = 0;      // 現在何回目のスキャンか
     let html5QrCode = null; // QRコードオブジェクト
 
-    // 「スキャン開始」ボタンを押した時の処理
+    // 「スキャン開始」ボタン
     startScanBtn.addEventListener('click', () => {
-      // 選択されている時間帯を取得（複数チェックボックス）
+      // 選択された時間帯を取得
       const timeCheckboxes = document.querySelectorAll('input[name="time"]:checked');
       let times = [];
       timeCheckboxes.forEach(cb => times.push(cb.value));
       selectedTimesSpan.textContent = times.join(', ') || '(未選択)';
 
-      // 既にスキャン中なら一旦停止させる
+      // 2回目切り替えメッセージは一旦隠す
+      secondScanMessage.style.display = 'none';
+
+      // 既にスキャン中なら停止させて再スタート
       if (html5QrCode) {
         html5QrCode.stop().catch(err => console.error(err));
       }
@@ -71,9 +128,9 @@
       scanResult1Span.textContent = '-';
       scanResult2Span.textContent = '-';
 
-      // カメラ起動 (ユーザーに許可を求めるポップアップが出る)
+      // カメラ起動
       html5QrCode = new Html5Qrcode("reader");
-      const config = { fps: 10, qrbox: 250 }; // FPSや表示領域など適宜調整
+      const config = { fps: 10, qrbox: 250 };
       html5QrCode.start(
         { facingMode: "environment" }, // 背面カメラを優先
         config,
@@ -85,7 +142,7 @@
       });
     });
 
-    // QRコードを読み取った時に呼ばれるコールバック
+    // QRコードが読み取れた時のコールバック
     function qrCodeSuccessCallback(decodedText, decodedResult) {
       scanCount++;
       console.log(`スキャン${scanCount}回目: `, decodedText);
@@ -93,10 +150,13 @@
       if (scanCount === 1) {
         // 1回目の結果
         scanResult1Span.textContent = decodedText;
+        // 2回目へ切り替える合図を出す
+        secondScanMessage.style.display = 'block';
+
       } else if (scanCount === 2) {
         // 2回目の結果
         scanResult2Span.textContent = decodedText;
-        // 2回目が終わったら自動で停止 (必要なら)
+        // スキャン終了
         html5QrCode.stop().catch(err => console.error(err));
       }
     }
