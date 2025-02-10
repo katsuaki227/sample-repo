@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>QRスキャン - 表形式</title>
+  <title>QRスキャン - 表形式（複数選択）</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
       font-family: sans-serif;
-      font-size: 2.2em; /* 全体フォントサイズ */
+      font-size: 2.2em; /* 全体を大きめ表示 */
       margin: 20px;
     }
     table {
@@ -22,38 +22,34 @@
       text-align: center;
     }
     th {
-      background: #dce6f1; /* 薄い水色風 */
+      background: #dce6f1; /* 薄い水色 */
     }
-    /* 選択されたセルをハイライトする */
+    /* 選択されたセルをハイライト */
     td.selected {
       background-color: #ffecb3;
     }
-    /* ボタン類を大きめに */
     button {
-      font-size: 1em; /* もともとbodyが2.2emなので、実質2.2em相当 */
+      font-size: 1em; /* bodyが2.2emなので実質2.2em相当 */
       padding: 0.2em 0.5em;
       margin-right: 10px;
     }
-    /* カメラ表示枠を大きく（縦方向にも余裕） */
     #reader {
       width: 640px;
       height: 640px;
       border: 2px dashed #666;
-      display: none; /* 初期は隠しておき、スキャン時に表示 */
+      display: none; /* 初期は非表示 */
       margin-bottom: 20px;
-    }
-    .hidden {
-      display: none;
     }
   </style>
 </head>
 <body>
 
-<h1>QRスキャン（表形式）</h1>
-<p>左列の「Time」を参照し、右列セルをクリックして選択した後に「Scan #1」ボタンで1回目をスキャン。  
-   結果を確認したら「Confirm #1」→続けて「Scan #2」ボタンで2回目をスキャンします。</p>
+<h1>QRスキャン（複数選択）</h1>
+<p>下記の表で「Content」セルを複数クリックして選択し、<br>
+  <strong>「Scan #1」</strong> → 読み取り → <strong>「Starting Scan #2」</strong> → 2回目読み取り<br>
+  の順に操作してください。1回目と2回目の結果は同じセルに上書きされます。</p>
 
-<!-- 時間表：例として3行のみ。必要に応じて増やしてください。 -->
+<!-- 7:00～11:00(15分刻み)の表  -->
 <table id="timeTable">
   <thead>
     <tr>
@@ -62,98 +58,93 @@
     </tr>
   </thead>
   <tbody>
-    <tr>
-      <td>7:00</td>
-      <td>(no data)</td>
-    </tr>
-    <tr>
-      <td>7:15</td>
-      <td>(no data)</td>
-    </tr>
-    <tr>
-      <td>7:30</td>
-      <td>(no data)</td>
-    </tr>
+    <tr><td>7:00</td><td>(no data)</td></tr>
+    <tr><td>7:15</td><td>(no data)</td></tr>
+    <tr><td>7:30</td><td>(no data)</td></tr>
+    <tr><td>7:45</td><td>(no data)</td></tr>
+    <tr><td>8:00</td><td>(no data)</td></tr>
+    <tr><td>8:15</td><td>(no data)</td></tr>
+    <tr><td>8:30</td><td>(no data)</td></tr>
+    <tr><td>8:45</td><td>(no data)</td></tr>
+    <tr><td>9:00</td><td>(no data)</td></tr>
+    <tr><td>9:15</td><td>(no data)</td></tr>
+    <tr><td>9:30</td><td>(no data)</td></tr>
+    <tr><td>9:45</td><td>(no data)</td></tr>
+    <tr><td>10:00</td><td>(no data)</td></tr>
+    <tr><td>10:15</td><td>(no data)</td></tr>
+    <tr><td>10:30</td><td>(no data)</td></tr>
+    <tr><td>10:45</td><td>(no data)</td></tr>
+    <tr><td>11:00</td><td>(no data)</td></tr>
   </tbody>
 </table>
 
 <!-- 操作用ボタン -->
 <button id="scan1Btn">Scan #1</button>
-<button id="confirm1Btn" class="hidden">Confirm #1</button>
-<button id="scan2Btn" class="hidden">Scan #2</button>
+<button id="scan2Btn" style="display:none;">Starting Scan #2</button>
 
 <!-- カメラ表示領域 -->
 <div id="reader"></div>
 
 <script>
-  // HTML要素を取得
   const timeTable = document.getElementById('timeTable');
   const scan1Btn = document.getElementById('scan1Btn');
-  const confirm1Btn = document.getElementById('confirm1Btn');
   const scan2Btn = document.getElementById('scan2Btn');
   const readerDiv = document.getElementById('reader');
 
-  let html5QrCode = null;      // QRコードスキャン用オブジェクト
-  let selectedCell = null;     // 選択中の表セル (Content欄)
-  let firstScanResult = "";    // 1回目スキャンの結果
-  let scanCount = 0;           // スキャンが何回目か（1 or 2）
+  let selectedCells = [];     // 複数セルを選択して保持
+  let html5QrCode = null;     // QRコードスキャン用オブジェクト
+  let scanCount = 0;          // 1回目か2回目か (0→1→2)
 
-  // ◆◆◆ 表の「Content」セルをクリックしたら選択状態にする ◆◆◆
+  // テーブル内のクリックでセルの選択をトグル
   timeTable.addEventListener('click', (e) => {
     const cell = e.target;
-    // 行・列を特定。Content欄をクリックした場合のみ選択状態にする
+    // "Content"列(インデックス1)のTDをクリックしたときだけ反応
     if (cell.tagName === 'TD' && cell.cellIndex === 1) {
-      // 既に選択されているセルがあればハイライト解除
-      if (selectedCell) {
-        selectedCell.classList.remove('selected');
+      // 既に選択済みなら解除、そうでなければ選択に追加
+      if (selectedCells.includes(cell)) {
+        // 解除
+        selectedCells = selectedCells.filter(c => c !== cell);
+        cell.classList.remove('selected');
+      } else {
+        // 選択
+        selectedCells.push(cell);
+        cell.classList.add('selected');
       }
-      // 新たに選択
-      selectedCell = cell;
-      selectedCell.classList.add('selected');
     }
   });
 
-  // ◆◆◆「Scan #1」ボタンが押されたら1回目スキャン開始 ◆◆◆
+  // 1回目スキャン開始
   scan1Btn.addEventListener('click', () => {
-    if (!selectedCell) {
-      alert("先に表の右セルをクリックして選択してください。");
+    if (selectedCells.length === 0) {
+      alert("先に表のContentセルを複数（または1つ）選択してください。");
       return;
     }
     scanCount = 1;
-    // 1回目スキャン開始→カメラを表示
     startCamera();
   });
 
-  // ◆◆◆ 1回目スキャンが終わった後に表示される「Confirm #1」 ◆◆◆
-  confirm1Btn.addEventListener('click', () => {
-    // 確認OK → 2回目スキャンボタンを出す
-    confirm1Btn.classList.add('hidden');
-    scan2Btn.classList.remove('hidden');
-  });
-
-  // ◆◆◆「Scan #2」ボタンが押されたら2回目スキャン開始 ◆◆◆
+  // 2回目スキャン開始
   scan2Btn.addEventListener('click', () => {
     scanCount = 2;
     startCamera();
   });
 
-  // ◆◆◆ カメラ起動処理 ◆◆◆
+  // カメラ起動処理
   function startCamera() {
-    // 既にスキャン中なら停止して再スタート
+    // 前のスキャンが残っていたら停止
     if (html5QrCode) {
       html5QrCode.stop().catch(err => console.error(err));
     }
-    // カメラ枠を表示
     readerDiv.style.display = "block";
 
     html5QrCode = new Html5Qrcode("reader");
     const config = {
       fps: 10,
-      // qrboxで「読み取り可能枠」を指定（縦横600程度に拡大）
+      // qrboxを大きく(幅・高さとも600)にして読み取り範囲拡大
       qrbox: { width: 600, height: 600 }
     };
     html5QrCode.start(
-      { facingMode: "environment" }, // 背面カメラを優先
+      { facingMode: "environment" }, // 背面カメラ優先
       config,
       onScanSuccess
     )
@@ -163,30 +154,36 @@
     });
   }
 
-  // ◆◆◆ QRコードが読み取れたときの処理 ◆◆◆
+  // QRコード読取成功時
   function onScanSuccess(decodedText, decodedResult) {
-    // 1回読み取ったらカメラを停止
+    // 1回読み取ったら停止してカメラを隠す
     html5QrCode.stop().then(() => {
-      readerDiv.style.display = "none"; // カメラ枠を隠す
+      readerDiv.style.display = "none";
     }).catch(err => console.error(err));
 
     if (scanCount === 1) {
-      // 1回目スキャン
-      firstScanResult = decodedText;
-      // 選択セルに1回目のスキャン結果を書き込む
-      selectedCell.textContent = "1st: " + firstScanResult;
-      // Confirm #1ボタンを表示、Scan #2ボタンは隠す
-      confirm1Btn.classList.remove('hidden');
-      scan2Btn.classList.add('hidden');
+      // 1回目の結果を全選択セルに書き込み
+      selectedCells.forEach(cell => {
+        cell.textContent = "1st: " + decodedText;
+      });
+      // 1回目終了したらScan #2ボタンを表示
+      scan1Btn.style.display = "none";
+      scan2Btn.style.display = "inline-block";
 
     } else if (scanCount === 2) {
-      // 2回目スキャン
-      const secondScanResult = decodedText;
-      // 選択セルに1回目 + 2回目をまとめて書き込む
-      selectedCell.textContent = "1st: " + firstScanResult + " / 2nd: " + secondScanResult;
-      // 2回目終了後はConfirmボタン等は必要ないのでまとめて隠す
-      confirm1Btn.classList.add('hidden');
-      scan2Btn.classList.add('hidden');
+      // 2回目の結果を全選択セルに追記
+      selectedCells.forEach(cell => {
+        // 既存の内容(1st: ...)を取り出して結合
+        const currentText = cell.textContent || "";
+        cell.textContent = currentText + " / 2nd: " + decodedText;
+      });
+      // 2回目が終わったらScanボタン非表示に戻す
+      scan2Btn.style.display = "none";
+      // 再びScan #1できるようにする場合
+      scan1Btn.style.display = "inline-block";
+      // ここで選択解除する場合は以下を有効に（任意）
+      // selectedCells.forEach(c => c.classList.remove('selected'));
+      // selectedCells = [];
     }
   }
 </script>
