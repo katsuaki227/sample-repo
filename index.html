@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>QRスキャンデモ</title>
+  <!-- html5-qrcodeライブラリをCDNから読み込み -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 16px;
+    }
+    #reader {
+      width: 300px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+    }
+    .time-options label {
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>QRスキャンデモ</h1>
+  <p>時間帯を選択し、「スキャン開始」を押してカメラを起動。2回連続スキャンすると、結果が表示されます。</p>
+
+  <!-- 時間帯のチェックボックス例 -->
+  <div class="time-options">
+    <label><input type="checkbox" name="time" value="7:00">7:00</label>
+    <label><input type="checkbox" name="time" value="7:30">7:30</label>
+    <label><input type="checkbox" name="time" value="8:00">8:00</label>
+    <!-- 必要に応じて増やす -->
+  </div>
+
+  <!-- スキャン開始ボタン -->
+  <button id="startScanBtn">スキャン開始</button>
+
+  <!-- カメラ映像とQR読取りを行う領域 -->
+  <div id="reader"></div>
+
+  <!-- スキャン結果表示 -->
+  <p>【1回目】<span id="scanResult1">-</span></p>
+  <p>【2回目】<span id="scanResult2">-</span></p>
+
+  <!-- 選択された時間帯の表示 -->
+  <p>選択時間帯: <span id="selectedTimes">-</span></p>
+
+  <script>
+    const startScanBtn = document.getElementById('startScanBtn');
+    const readerDiv = document.getElementById('reader');
+    const scanResult1Span = document.getElementById('scanResult1');
+    const scanResult2Span = document.getElementById('scanResult2');
+    const selectedTimesSpan = document.getElementById('selectedTimes');
+
+    let scanCount = 0;      // 何回目のスキャンか
+    let html5QrCode = null; // QRコードオブジェクト
+
+    // 「スキャン開始」ボタンを押した時の処理
+    startScanBtn.addEventListener('click', () => {
+      // 選択されている時間帯を取得（複数チェックボックス）
+      const timeCheckboxes = document.querySelectorAll('input[name="time"]:checked');
+      let times = [];
+      timeCheckboxes.forEach(cb => times.push(cb.value));
+      selectedTimesSpan.textContent = times.join(', ') || '(未選択)';
+
+      // 既にスキャン中なら一旦停止させる
+      if (html5QrCode) {
+        html5QrCode.stop().catch(err => console.error(err));
+      }
+      scanCount = 0;
+      scanResult1Span.textContent = '-';
+      scanResult2Span.textContent = '-';
+
+      // カメラ起動 (ユーザーに許可を求めるポップアップが出る)
+      html5QrCode = new Html5Qrcode("reader");
+      const config = { fps: 10, qrbox: 250 }; // FPSや表示領域など適宜調整
+      html5QrCode.start(
+        { facingMode: "environment" }, // 背面カメラを優先
+        config,
+        qrCodeSuccessCallback
+      )
+      .catch(err => {
+        console.error("Camera start error:", err);
+        alert("カメラを起動できませんでした: " + err);
+      });
+    });
+
+    // QRコードを読み取った時に呼ばれるコールバック
+    function qrCodeSuccessCallback(decodedText, decodedResult) {
+      scanCount++;
+      console.log(`スキャン${scanCount}回目: `, decodedText);
+
+      if (scanCount === 1) {
+        // 1回目の結果
+        scanResult1Span.textContent = decodedText;
+      } else if (scanCount === 2) {
+        // 2回目の結果
+        scanResult2Span.textContent = decodedText;
+        // 2回目が終わったら自動で停止 (必要なら)
+        html5QrCode.stop().catch(err => console.error(err));
+      }
+    }
+  </script>
+</body>
+</html>
